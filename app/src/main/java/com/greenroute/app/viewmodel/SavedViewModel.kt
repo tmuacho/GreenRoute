@@ -33,24 +33,21 @@ class SavedViewModel(
 
     private fun loadSavedRoutes() {
         viewModelScope.launch {
-            routeRepository.savedRoutes
-                .catch { e ->
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            error = e.message
-                        )
-                    }
+            try {
+                routeRepository.savedRoutes.collect { routes ->
+                    _uiState.value = SavedUiState(
+                        savedRoutes = routes,
+                        isLoading = false,
+                        error = null
+                    )
                 }
-                .collect { routes ->
-                    _uiState.update {
-                        it.copy(
-                            savedRoutes = routes,
-                            isLoading = false,
-                            error = null
-                        )
-                    }
-                }
+            } catch (e: Exception) {
+                _uiState.value = SavedUiState(
+                    savedRoutes = emptyList(),
+                    isLoading = false,
+                    error = e.message ?: "Erro desconhecido"
+                )
+            }
         }
     }
 
@@ -59,7 +56,7 @@ class SavedViewModel(
             try {
                 routeRepository.toggleSaved(route.id, false)
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message) }
+                // Silently handle error
             }
         }
     }
@@ -69,7 +66,7 @@ class SavedViewModel(
             try {
                 routeRepository.delete(route)
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message) }
+                // Silently handle error
             }
         }
     }

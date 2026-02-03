@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -20,7 +21,8 @@ data class TransportOption(
     val type: String,
     val duration: Int,      // in minutes
     val co2Emission: Double, // in grams
-    val distance: Double = 0.0
+    val distance: Double = 0.0,
+    val isBestEcoChoice: Boolean = false // New flag
 )
 
 /**
@@ -69,11 +71,22 @@ fun TransportOptionItem(
                 Spacer(modifier = Modifier.width(12.dp))
                 
                 Column {
-                    Text(
-                        text = getTransportName(option.type),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = getTransportName(option.type),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        if (option.isBestEcoChoice) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Default.Eco,
+                                contentDescription = "Eco Choice",
+                                tint = GreenPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                     Text(
                         text = "${option.duration} min",
                         style = MaterialTheme.typography.bodySmall,

@@ -20,6 +20,7 @@ import com.greenroute.app.ui.components.getTransportColor
 import com.greenroute.app.ui.components.getTransportIcon
 import com.greenroute.app.ui.components.getTransportName
 import com.greenroute.app.ui.theme.*
+import com.greenroute.app.viewmodel.SearchNavigationEvent
 import com.greenroute.app.viewmodel.SearchViewModel
 
 /**
@@ -30,10 +31,22 @@ import com.greenroute.app.viewmodel.SearchViewModel
 fun SearchScreen(
     viewModel: SearchViewModel,
     onBackClick: () -> Unit,
+    onNavigateToRecent: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var searchText by remember { mutableStateOf("Metro Entrecampos") }
+    
+    // Handle navigation events
+    LaunchedEffect(Unit) {
+        viewModel.navigationEvents.collect { event ->
+            when (event) {
+                is SearchNavigationEvent.NavigateToRecent -> onNavigateToRecent()
+            }
+        }
+    }
+
+    // Keep text field synced with query
+    var searchText by remember { mutableStateOf(uiState.searchQuery) }
 
     Column(
         modifier = modifier
@@ -79,7 +92,7 @@ fun SearchScreen(
                     value = searchText,
                     onValueChange = { 
                         searchText = it
-                        viewModel.updateDestination(it)
+                        viewModel.updateSearchQuery(it)
                     },
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text("Para onde queres ir?") },
@@ -102,6 +115,7 @@ fun SearchScreen(
             }
         }
 
+        // Content
         // Transport filter chips
         LazyRow(
             modifier = Modifier
@@ -150,7 +164,7 @@ fun SearchScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(32.dp),
-                contentAlignment = Alignment.Center
+                    contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(color = GreenPrimary)
             }

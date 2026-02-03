@@ -14,12 +14,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.greenroute.app.data.local.entities.Route
 import com.greenroute.app.ui.components.RouteCard
 import com.greenroute.app.ui.theme.*
+import com.greenroute.app.viewmodel.RecentUiState
 import com.greenroute.app.viewmodel.RecentViewModel
 
 /**
- * Recent routes screen showing full trip history.
+ * Recent routes screen showing trip history.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,8 +29,24 @@ fun RecentScreen(
     viewModel: RecentViewModel,
     modifier: Modifier = Modifier
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsState(initial = RecentUiState())
 
+    RecentScreenContent(
+        uiState = uiState,
+        onToggleSave = { viewModel.toggleSaveRoute(it) },
+        onDelete = { viewModel.deleteRoute(it) },
+        modifier = modifier
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RecentScreenContent(
+    uiState: RecentUiState,
+    onToggleSave: (Route) -> Unit,
+    onDelete: (Route) -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -38,7 +56,7 @@ fun RecentScreen(
         TopAppBar(
             title = {
                 Text(
-                    text = "Viagens recentes",
+                    text = "Histórico",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -50,53 +68,60 @@ fun RecentScreen(
         )
 
         // Content
-        if (uiState.isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(color = GreenPrimary)
-            }
-        } else if (uiState.recentRoutes.isEmpty()) {
-            // Empty state
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.History,
-                        contentDescription = null,
-                        tint = GreenLight,
-                        modifier = Modifier.size(64.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Sem histórico de viagens",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TextSecondary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "As tuas viagens aparecerão aqui.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextHint
-                    )
+        when {
+            uiState.isLoading -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = GreenPrimary)
                 }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(uiState.recentRoutes) { route ->
-                    RouteCard(
-                        route = route,
-                        onCardClick = {},
-                        onSaveClick = { viewModel.toggleSaveRoute(route) },
-                        onDeleteClick = { viewModel.deleteRoute(route) }
-                    )
+            uiState.recentRoutes.isEmpty() -> {
+                // Empty state
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = null,
+                            tint = GreenLight,
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Sem viagens recentes",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = TextSecondary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "As tuas viagens aparecerão aqui!",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextHint
+                        )
+                    }
+                }
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(
+                        items = uiState.recentRoutes,
+                        key = { it.id }
+                    ) { route ->
+                        RouteCard(
+                            route = route,
+                            onCardClick = {},
+                            onSaveClick = { onToggleSave(route) },
+                            onDeleteClick = { onDelete(route) }
+                        )
+                    }
                 }
             }
         }

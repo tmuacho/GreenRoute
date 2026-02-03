@@ -114,7 +114,7 @@ fun RouteCard(
                                 },
                                 leadingIcon = {
                                     Icon(
-                                        imageVector = if (route.isSaved) Icons.Default.BookmarkRemove else Icons.Default.BookmarkAdd,
+                                        imageVector = if (route.isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                                         contentDescription = null
                                     )
                                 }

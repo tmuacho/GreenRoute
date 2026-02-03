@@ -1,7 +1,9 @@
 package com.greenroute.app.navigation
 
+import android.app.Application
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -9,6 +11,7 @@ import androidx.navigation.compose.composable
 import com.greenroute.app.data.repository.RouteRepository
 import com.greenroute.app.data.repository.UserRepository
 import com.greenroute.app.ui.screens.home.HomeScreen
+import com.greenroute.app.ui.screens.profile.ProfileScreen
 import com.greenroute.app.ui.screens.recent.RecentScreen
 import com.greenroute.app.ui.screens.saved.SavedScreen
 import com.greenroute.app.ui.screens.search.SearchScreen
@@ -22,6 +25,7 @@ object Routes {
     const val SAVED = "saved"
     const val RECENT = "recent"
     const val SEARCH = "search"
+    const val PROFILE = "profile"
 }
 
 /**
@@ -46,7 +50,17 @@ fun NavGraph(
             HomeScreen(
                 viewModel = viewModel,
                 onSearchClick = { navController.navigate(Routes.SEARCH) },
-                onProfileClick = { }
+                onProfileClick = { navController.navigate(Routes.PROFILE) }
+            )
+        }
+
+        composable(Routes.PROFILE) {
+            val viewModel: ProfileViewModel = viewModel(
+                factory = ProfileViewModel.provideFactory(userRepository)
+            )
+            ProfileScreen(
+                viewModel = viewModel,
+                onBackClick = { navController.popBackStack() }
             )
         }
 
@@ -65,12 +79,23 @@ fun NavGraph(
         }
 
         composable(Routes.SEARCH) {
+            val context = LocalContext.current
             val viewModel: SearchViewModel = viewModel(
-                factory = SearchViewModel.provideFactory(routeRepository)
+                factory = SearchViewModel.provideFactory(
+                    application = context.applicationContext as Application,
+                    routeRepository = routeRepository,
+                    userRepository = userRepository
+                )
             )
             SearchScreen(
                 viewModel = viewModel,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                onNavigateToRecent = {
+                    navController.navigate(Routes.RECENT) {
+                        // Pop up to home to avoid back stack loop
+                        popUpTo(Routes.HOME)
+                    }
+                }
             )
         }
     }

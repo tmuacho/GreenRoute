@@ -33,24 +33,21 @@ class RecentViewModel(
 
     private fun loadRecentRoutes() {
         viewModelScope.launch {
-            routeRepository.allRoutes
-                .catch { e ->
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            error = e.message
-                        )
-                    }
+            try {
+                routeRepository.allRoutes.collect { routes ->
+                    _uiState.value = RecentUiState(
+                        recentRoutes = routes,
+                        isLoading = false,
+                        error = null
+                    )
                 }
-                .collect { routes ->
-                    _uiState.update {
-                        it.copy(
-                            recentRoutes = routes,
-                            isLoading = false,
-                            error = null
-                        )
-                    }
-                }
+            } catch (e: Exception) {
+                _uiState.value = RecentUiState(
+                    recentRoutes = emptyList(),
+                    isLoading = false,
+                    error = e.message ?: "Erro desconhecido"
+                )
+            }
         }
     }
 
@@ -59,7 +56,7 @@ class RecentViewModel(
             try {
                 routeRepository.toggleSaved(route.id, !route.isSaved)
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message) }
+                // Silently handle error
             }
         }
     }
@@ -69,7 +66,7 @@ class RecentViewModel(
             try {
                 routeRepository.delete(route)
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message) }
+                // Silently handle error
             }
         }
     }
