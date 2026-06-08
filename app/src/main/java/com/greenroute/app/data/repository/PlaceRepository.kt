@@ -1,15 +1,14 @@
 package com.greenroute.app.data.repository
 
-import android.content.Context
 import android.util.Log
-import com.google.android.gms.common.api.ApiException
-import com.google.android.libraries.places.api.Places
-import com.google.android.libraries.places.api.model.PlaceSuggestion
-import com.google.android.libraries.places.api.net.SearchSuggestionsRequest
 import com.greenroute.app.data.local.dao.SavedPlaceDao
 import com.greenroute.app.data.local.entities.SavedPlace
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
  * Simple autocomplete result — primary text (place name) + secondary text (city/country).
@@ -26,11 +25,16 @@ data class AutocompleteResult(
 /**
  * Repository for SavedPlace operations and Google Places autocomplete.
  *
- * Uses the NEW Places API (searchSuggestions) — requires "Places API (New)"
- * to be enabled in Google Cloud Console, NOT the legacy "Places API".
+ * Autocomplete uses the Places API (New) via plain HTTP — avoids the legacy SDK
+ * endpoint (findAutocompletePredictions) which requires the deprecated
+ * "Places API" to be enabled and is not available when only
+ * "Places API (New)" is enabled in Google Cloud Console.
+ *
+ * Endpoint: POST https://places.googleapis.com/v1/places:autocomplete
  */
 class PlaceRepository(
-    private val savedPlaceDao: SavedPlaceDao
+    private val savedPlaceDao: SavedPlaceDao,
+    private val apiKey: String
 ) {
     val allSavedPlaces: Flow<List<SavedPlace>> = savedPlaceDao.getAllSavedPlaces()
 
@@ -47,52 +51,76 @@ class PlaceRepository(
     // ── Autocomplete ─────────────────────────────────────────────────────────
 
     /**
-     * Search for places using the NEW Places API (searchSuggestions).
-     * Returns [Result] so callers can show errors in the UI instead of silently failing.
+     * Search for places using the Places Autocomplete (New) REST API.
+     * Returns [Result] so callers can surface errors in the UI.
      */
-    suspend fun searchPlaces(context: Context, query: String): Result<List<AutocompleteResult>> {
+    suspend fun searchPlaces(query: String): Result<List<AutocompleteResult>> {
         if (query.length < 2) return Result.success(emptyList())
+        if (apiKey.isEmpty()) return Result.failure(Exception("API key not configured"))
 
-        if (!Places.isInitialized()) {
-            val msg = "Places SDK not initialised — check API key"
-            Log.e("PlaceRepository", msg)
-            return Result.failure(IllegalStateException(msg))
-        }
+        return withContext(Dispatchers.IO) {
+            try {
+                val conn = URL(AUTOCOMPLETE_URL).openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conn.setRequestProperty("X-Goog-Api-Key", apiKey)
+                conn.connectTimeout = 6_000
+                conn.readTimeout   = 6_000
+                conn.doOutput = true
 
-        val placesClient = Places.createClient(context)
+                val safeQuery = query.replace("\\", "\\\\").replace("\"", "\\\"")
+                val body = """{"input":"$safeQuery","regionCode":"PT"}"""
+                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
 
-        return try {
-            // searchSuggestions uses the NEW Places API endpoint — no session token needed
-            val request = SearchSuggestionsRequest.builder(query)
-                .setRegionCode("PT")   // bias results toward Portugal
-                .build()
-
-            val response = placesClient.searchSuggestions(request).await()
-
-            val results = response.suggestions.mapNotNull { suggestion ->
-                // Cast to PlaceSuggestion to access primaryText / secondaryText
-                (suggestion as? PlaceSuggestion)?.let { ps ->
-                    AutocompleteResult(
-                        primaryText  = ps.primaryText.text,
-                        secondaryText = ps.secondaryText?.text ?: ""
-                    )
+                val code = conn.responseCode
+                val text = if (code == 200) {
+                    conn.inputStream.bufferedReader(Charsets.UTF_8).readText()
+                } else {
+                    val err = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.readText() ?: ""
+                    conn.disconnect()
+                    return@withContext Result.failure(Exception("HTTP $code: $err"))
                 }
+                conn.disconnect()
+
+                val results = parseResponse(text)
+                Log.d(TAG, "Got ${results.size} suggestions for '$query'")
+                Result.success(results)
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Autocomplete failed: ${e.javaClass.simpleName}: ${e.message}")
+                Result.failure(e)
             }
-
-            Log.d("PlaceRepository", "searchSuggestions: ${results.size} results for '$query'")
-            Result.success(results)
-
-        } catch (e: ApiException) {
-            val msg = "Places API error ${e.statusCode}: ${e.message}"
-            Log.e("PlaceRepository", msg)
-            Result.failure(Exception(msg))
-        } catch (e: Exception) {
-            val msg = "${e.javaClass.simpleName}: ${e.message}"
-            Log.e("PlaceRepository", "searchSuggestions failed — $msg")
-            Result.failure(Exception(msg))
         }
     }
 
-    /** No-op kept for API compatibility with SearchViewModel. */
+    private fun parseResponse(json: String): List<AutocompleteResult> {
+        return try {
+            val suggestions = JSONObject(json).optJSONArray("suggestions")
+                ?: return emptyList()
+
+            (0 until suggestions.length()).mapNotNull { i ->
+                val pred = suggestions.getJSONObject(i)
+                    .optJSONObject("placePrediction") ?: return@mapNotNull null
+                val sf = pred.optJSONObject("structuredFormat") ?: return@mapNotNull null
+
+                val main      = sf.optJSONObject("mainText")?.optString("text", "")      ?: ""
+                val secondary = sf.optJSONObject("secondaryText")?.optString("text", "") ?: ""
+
+                if (main.isEmpty()) null
+                else AutocompleteResult(primaryText = main, secondaryText = secondary)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "JSON parse error: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /** No-op — kept for API compatibility; new Places API doesn't use session tokens. */
     fun resetSessionToken() = Unit
+
+    private companion object {
+        const val TAG = "PlaceRepository"
+        const val AUTOCOMPLETE_URL =
+            "https://places.googleapis.com/v1/places:autocomplete"
+    }
 }

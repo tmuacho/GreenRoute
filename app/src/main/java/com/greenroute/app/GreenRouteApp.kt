@@ -22,7 +22,7 @@ class GreenRouteApp : Application() {
     }
 
     val placeRepository: PlaceRepository by lazy {
-        PlaceRepository(database.savedPlaceDao())
+        PlaceRepository(database.savedPlaceDao(), mapsApiKey)
     }
 
     val mapsApiKey: String by lazy {

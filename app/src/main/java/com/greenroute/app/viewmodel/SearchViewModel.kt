@@ -95,7 +95,7 @@ class SearchViewModel(
                 delay(300)
                 _uiState.update { it.copy(isLoadingPredictions = true, autocompleteError = null) }
 
-                val result = placeRepository.searchPlaces(getApplication(), query)
+                val result = placeRepository.searchPlaces(query)
                 result.fold(
                     onSuccess = { predictions ->
                         _uiState.update {
