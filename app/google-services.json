@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "52455350881",
+    "project_id": "greenroute-81f62",
+    "storage_bucket": "greenroute-81f62.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:52455350881:android:8feda2681e598df4274020",
+        "android_client_info": {
+          "package_name": "com.greenroute.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "52455350881-602ddh0qbd32upqhsh2dhohb5bm6ahkl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.greenroute.app",
+            "certificate_hash": "3244895acb818465e015c62ea23b2a9db1eda7ae"
+          }
+        },
+        {
+          "client_id": "52455350881-7nmgk6382uj6qoqp4i785ru845t15kqf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBxNNYeXh2Wc0pBfr3PxHbR6u6rTgBGtMA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "52455350881-7nmgk6382uj6qoqp4i785ru845t15kqf.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
