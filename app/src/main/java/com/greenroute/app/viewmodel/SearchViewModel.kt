@@ -77,7 +77,16 @@ class SearchViewModel(
     // ── Search / autocomplete ─────────────────────────────────────────────────
 
     fun updateSearchQuery(query: String) {
-        _uiState.update { it.copy(searchQuery = query) }
+        // When the user types manually, clear the previously-selected destination and
+        // transport options so the empty state shows again until a new place is chosen.
+        _uiState.update {
+            it.copy(
+                searchQuery = query,
+                destination = "",
+                transportOptions = emptyList(),
+                locationPredictions = emptyList()
+            )
+        }
 
         searchJob?.cancel()
         if (query.length > 2) {
@@ -86,8 +95,6 @@ class SearchViewModel(
                 val predictions = placeRepository.searchPlaces(getApplication(), query)
                 _uiState.update { it.copy(locationPredictions = predictions) }
             }
-        } else {
-            _uiState.update { it.copy(locationPredictions = emptyList()) }
         }
     }
 

@@ -1,15 +1,11 @@
 package com.greenroute.app.ui.screens.search
 
 import android.Manifest
-import android.annotation.SuppressLint
-import android.content.Context
 import android.content.pm.PackageManager
-import android.location.LocationManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -20,20 +16,24 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.ContextCompat
 import com.greenroute.app.ui.components.TransportOptionItem
 import com.greenroute.app.ui.components.getTransportColor
 import com.greenroute.app.ui.components.getTransportIcon
 import com.greenroute.app.ui.components.getTransportName
 import com.greenroute.app.ui.theme.*
+import com.greenroute.app.util.getLastKnownLocation
 import com.greenroute.app.viewmodel.SearchNavigationEvent
 import com.greenroute.app.viewmodel.SearchViewModel
 
-@SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
@@ -45,6 +45,7 @@ fun SearchScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val density = LocalDensity.current
 
     // ── Navigation events ─────────────────────────────────────────────────────
     LaunchedEffect(Unit) {
@@ -55,26 +56,39 @@ fun SearchScreen(
         }
     }
 
-    // ── Location permission + GPS ──────────────────────────────────────────────
+    // ── Location permission + GPS ─────────────────────────────────────────────
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        if (isGranted) getLastLocation(context)?.let { (lat, lng) -> viewModel.setCurrentLocation(lat, lng) }
-        else viewModel.setLocationPermissionDenied()
+        if (isGranted) {
+            getLastKnownLocation(context)?.let { (lat, lng) ->
+                viewModel.setCurrentLocation(lat, lng)
+            }
+        } else {
+            viewModel.setLocationPermissionDenied()
+        }
     }
     LaunchedEffect(Unit) {
         val granted = ContextCompat.checkSelfPermission(
             context, Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
-        if (granted) getLastLocation(context)?.let { (lat, lng) -> viewModel.setCurrentLocation(lat, lng) }
-        else permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        if (granted) {
+            getLastKnownLocation(context)?.let { (lat, lng) ->
+                viewModel.setCurrentLocation(lat, lng)
+            }
+        } else {
+            permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
     }
 
-    // Keep text in sync; reset when user clears the field
+    // Local search text — syncs with viewModel when cleared
     var searchText by remember { mutableStateOf("") }
     LaunchedEffect(uiState.searchQuery) {
         if (uiState.searchQuery.isEmpty()) searchText = ""
     }
+
+    // Measure text field width so the dropdown matches it exactly
+    var textFieldWidthPx by remember { mutableIntStateOf(0) }
 
     val hasDestination = uiState.destination.isNotEmpty()
 
@@ -128,7 +142,8 @@ fun SearchScreen(
                         Text(
                             text = if (uiState.currentLocationString != null)
                                 "A partir da tua localização atual"
-                            else "A partir de Lisboa, Portugal",
+                            else
+                                "A partir de Lisboa, Portugal",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextOnGreen.copy(alpha = 0.8f)
                         )
@@ -137,10 +152,10 @@ fun SearchScreen(
                     Spacer(Modifier.height(10.dp))
 
                     // ── Search field + autocomplete dropdown ──────────────────
-                    ExposedDropdownMenuBox(
-                        expanded = uiState.locationPredictions.isNotEmpty(),
-                        onExpandedChange = { if (!it) viewModel.clearPredictions() }
-                    ) {
+                    // Use Box + DropdownMenu(focusable = false) instead of
+                    // ExposedDropdownMenuBox to avoid focus being stolen from the
+                    // TextField when the suggestion list appears.
+                    Box(modifier = Modifier.fillMaxWidth()) {
                         OutlinedTextField(
                             value = searchText,
                             onValueChange = { v ->
@@ -149,12 +164,11 @@ fun SearchScreen(
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .menuAnchor(MenuAnchorType.PrimaryEditable),
+                                .onGloballyPositioned { coords ->
+                                    textFieldWidthPx = coords.size.width
+                                },
                             placeholder = {
-                                Text(
-                                    "Para onde queres ir?",
-                                    color = TextSecondary
-                                )
+                                Text("Para onde queres ir?", color = TextSecondary)
                             },
                             leadingIcon = {
                                 Icon(Icons.Default.Search, contentDescription = null, tint = TextSecondary)
@@ -181,11 +195,13 @@ fun SearchScreen(
                             singleLine = true
                         )
 
-                        // Suggestions popup — appears below text field, not clipped by Surface
-                        ExposedDropdownMenu(
+                        // Autocomplete dropdown — focusable=false keeps typing focus in TextField
+                        DropdownMenu(
                             expanded = uiState.locationPredictions.isNotEmpty(),
                             onDismissRequest = { viewModel.clearPredictions() },
-                            modifier = Modifier.exposedDropdownSize(matchTextFieldWidth = true)
+                            properties = PopupProperties(focusable = false),
+                            modifier = Modifier
+                                .width(with(density) { textFieldWidthPx.toDp() })
                         ) {
                             uiState.locationPredictions.forEach { prediction ->
                                 DropdownMenuItem(
@@ -222,9 +238,9 @@ fun SearchScreen(
                 }
             }
 
-            // ── Content area: empty state OR filter chips + results ───────────
+            // ── Content area: empty state OR filter chips + results ────────────
             if (!hasDestination) {
-                // ── Empty state — shown before any destination is typed/selected
+                // ── Empty state — shown before any destination is selected
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -300,7 +316,7 @@ fun SearchScreen(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // ── Loading / transport list
+                // ── Loading or transport list
                 if (uiState.isLoading) {
                     Box(
                         modifier = Modifier
@@ -342,7 +358,7 @@ fun SearchScreen(
             }
         }
 
-        // ── Full-screen overlay while route is being saved ────────────────────
+        // ── Full-screen loading overlay while route is being saved ────────────
         if (uiState.isStartingRoute) {
             Box(
                 modifier = Modifier
@@ -366,17 +382,4 @@ fun SearchScreen(
             }
         }
     }
-}
-
-// ── Location helper ──────────────────────────────────────────────────────────
-
-@SuppressLint("MissingPermission")
-private fun getLastLocation(context: Context): Pair<Double, Double>? {
-    return try {
-        val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        val loc = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-            ?: lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            ?: lm.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
-        loc?.let { Pair(it.latitude, it.longitude) }
-    } catch (_: Exception) { null }
 }

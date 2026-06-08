@@ -1,5 +1,9 @@
 package com.greenroute.app.ui.screens.home
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,22 +15,24 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.greenroute.app.ui.components.MapPlaceholder
 import com.greenroute.app.ui.components.RouteCard
 import com.greenroute.app.ui.theme.*
+import com.greenroute.app.util.getLastKnownLocation
 import com.greenroute.app.viewmodel.HomeViewModel
 
 /**
- * Home screen with greeting, map, and recent routes.
+ * Home screen with greeting, map and recent routes.
+ * Requests location permission on first load so the map can show the blue dot.
  */
 @Composable
 fun HomeScreen(
@@ -37,6 +43,40 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+
+    // ── Location state ────────────────────────────────────────────────────────
+    var userLat by remember { mutableStateOf<Double?>(null) }
+    var userLng by remember { mutableStateOf<Double?>(null) }
+    var hasLocationPermission by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasLocationPermission = isGranted
+        if (isGranted) {
+            getLastKnownLocation(context)?.let { (lat, lng) ->
+                userLat = lat
+                userLng = lng
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val granted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        hasLocationPermission = granted
+        if (granted) {
+            getLastKnownLocation(context)?.let { (lat, lng) ->
+                userLat = lat
+                userLng = lng
+            }
+        } else {
+            permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
 
     LazyColumn(
         modifier = modifier
@@ -53,12 +93,15 @@ fun HomeScreen(
             )
         }
 
-        // Map placeholder
+        // Map — passes location so the blue dot and camera centre work
         item {
             MapPlaceholder(
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
-                    .padding(top = 16.dp)
+                    .padding(top = 16.dp),
+                userLat = userLat,
+                userLng = userLng,
+                hasLocationPermission = hasLocationPermission
             )
         }
 
@@ -136,9 +179,8 @@ fun HomeScreen(
     }
 }
 
-/**
- * Home screen header with greeting, search, and profile.
- */
+// ── Header ────────────────────────────────────────────────────────────────────
+
 @Composable
 private fun HomeHeader(
     userName: String,
@@ -153,13 +195,11 @@ private fun HomeHeader(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                // statusBarsPadding() adapts to every device's real status bar height
-                // (handles notches, punch holes, tall status bars)
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp)
                 .padding(top = 12.dp, bottom = 24.dp)
         ) {
-            // Top row with greeting and profile
+            // Top row: greeting + profile button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -182,7 +222,6 @@ private fun HomeHeader(
                     )
                 }
 
-                // Profile button
                 Surface(
                     modifier = Modifier
                         .size(48.dp)
@@ -203,7 +242,7 @@ private fun HomeHeader(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Search bar
+            // Search bar (tappable — navigates to SearchScreen)
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
