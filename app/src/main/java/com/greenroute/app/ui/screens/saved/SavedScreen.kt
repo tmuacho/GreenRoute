@@ -19,6 +19,8 @@ import com.greenroute.app.ui.components.RouteCard
 import com.greenroute.app.ui.theme.*
 import com.greenroute.app.viewmodel.SavedUiState
 import com.greenroute.app.viewmodel.SavedViewModel
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
 
 /**
  * Saved routes screen showing bookmarked trips.
@@ -55,7 +57,7 @@ fun SavedScreenContent(
             .fillMaxSize()
             .background(BackgroundLight)
     ) {
-        // Header
+        // TopAppBar with explicit status-bar insets (outer Scaffold disabled auto-insets)
         TopAppBar(
             title = {
                 Text(
@@ -67,7 +69,8 @@ fun SavedScreenContent(
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = BackgroundLight,
                 titleContentColor = TextPrimary
-            )
+            ),
+            windowInsets = WindowInsets.statusBars
         )
 
         // Content

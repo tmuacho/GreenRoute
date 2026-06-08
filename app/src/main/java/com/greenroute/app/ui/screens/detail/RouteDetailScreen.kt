@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalConfiguration
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
@@ -59,8 +60,15 @@ fun RouteDetailScreen(
 
     val route = uiState.route ?: return
 
+    // Adaptive map/detail split: taller phones give more space to the map
+    val configuration = LocalConfiguration.current
+    val mapWeight = if (configuration.screenHeightDp >= 700) 0.52f else 0.45f
+    val detailWeight = 1f - mapWeight
+
     Scaffold(
         modifier = modifier,
+        // Inner Scaffold owns system bar insets (outer Scaffold disabled its own top)
+        contentWindowInsets = WindowInsets.systemBars,
         topBar = {
             TopAppBar(
                 title = {
@@ -76,7 +84,8 @@ fun RouteDetailScreen(
                         Text(
                             text = getTransportName(route.transportType ?: "car"),
                             style = MaterialTheme.typography.bodySmall,
-                            color = getTransportColor(route.transportType ?: "car")
+                            color = getTransportColor(route.transportType ?: "car"),
+                            maxLines = 1
                         )
                     }
                 },
@@ -110,7 +119,7 @@ fun RouteDetailScreen(
             RouteMapView(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.55f),
+                    .weight(mapWeight),
                 polylinePoints = uiState.polylinePoints,
                 transportType = route.transportType ?: "car",
                 originLat = route.originLat,
@@ -123,7 +132,7 @@ fun RouteDetailScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.45f),
+                    .weight(detailWeight),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {

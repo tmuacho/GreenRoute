@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.greenroute.app.ui.components.MapPlaceholder
 import com.greenroute.app.ui.components.RouteCard
@@ -152,8 +153,11 @@ private fun HomeHeader(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // statusBarsPadding() adapts to every device's real status bar height
+                // (handles notches, punch holes, tall status bars)
+                .statusBarsPadding()
                 .padding(horizontal = 16.dp)
-                .padding(top = 48.dp, bottom = 24.dp)
+                .padding(top = 12.dp, bottom = 24.dp)
         ) {
             // Top row with greeting and profile
             Row(
@@ -161,17 +165,20 @@ private fun HomeHeader(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                     Text(
                         text = "Pronto para viajar,",
                         style = MaterialTheme.typography.bodyLarge,
-                        color = TextOnGreen.copy(alpha = 0.8f)
+                        color = TextOnGreen.copy(alpha = 0.8f),
+                        maxLines = 1
                     )
                     Text(
                         text = "$userName?",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
-                        color = TextOnGreen
+                        color = TextOnGreen,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 

@@ -19,6 +19,8 @@ import com.greenroute.app.ui.components.RouteCard
 import com.greenroute.app.ui.theme.*
 import com.greenroute.app.viewmodel.RecentUiState
 import com.greenroute.app.viewmodel.RecentViewModel
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
 
 /**
  * Recent routes screen showing trip history.
@@ -55,7 +57,6 @@ fun RecentScreenContent(
             .fillMaxSize()
             .background(BackgroundLight)
     ) {
-        // Header
         TopAppBar(
             title = {
                 Text(
@@ -67,7 +68,8 @@ fun RecentScreenContent(
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = BackgroundLight,
                 titleContentColor = TextPrimary
-            )
+            ),
+            windowInsets = WindowInsets.statusBars
         )
 
         // Content

@@ -4,12 +4,14 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.greenroute.app.data.repository.PlaceRepository
@@ -61,13 +63,15 @@ fun GreenRouteApp(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        // Let each screen handle its own top insets (status bar / notch)
+        // so the green headers can extend behind the status bar edge-to-edge
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (showBottomNav) {
                 BottomNavBar(
                     currentRoute = currentRoute,
                     onNavigate = { route ->
                         navController.navigate(route) {
-                            // Avoid building up a large stack of destinations
                             popUpTo(Routes.HOME) {
                                 saveState = true
                             }
@@ -84,7 +88,8 @@ fun GreenRouteApp(
             routeRepository = routeRepository,
             userRepository = userRepository,
             placeRepository = placeRepository,
-            modifier = Modifier.padding(innerPadding)
+            // Only pad bottom (for the bottom nav bar); screens own their top insets
+            modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())
         )
     }
 }

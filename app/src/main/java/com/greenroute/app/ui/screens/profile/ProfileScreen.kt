@@ -21,6 +21,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.greenroute.app.ui.theme.*
@@ -56,6 +57,7 @@ fun ProfileScreen(
     }
 
     Scaffold(
+        // Outer Scaffold already disabled top insets; this inner one handles its own
         topBar = {
             TopAppBar(
                 title = { Text("Perfil", fontWeight = FontWeight.Bold) },
@@ -71,7 +73,8 @@ fun ProfileScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = BackgroundLight
+        containerColor = BackgroundLight,
+        contentWindowInsets = WindowInsets.systemBars
     ) { padding ->
         if (uiState.isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -245,13 +248,17 @@ fun UserHeader(name: String, email: String, photoUrl: String?) {
             text = name,
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
-            color = TextPrimary
+            color = TextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
-        
+
         Text(
             text = email,
             style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary
+            color = TextSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }

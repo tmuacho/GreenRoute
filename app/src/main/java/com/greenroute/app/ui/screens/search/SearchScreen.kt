@@ -99,7 +99,8 @@ fun SearchScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 48.dp, bottom = 24.dp)
+                        .statusBarsPadding()
+                        .padding(top = 12.dp, bottom = 24.dp)
                         .padding(horizontal = 16.dp)
                 ) {
                     // Back + title
