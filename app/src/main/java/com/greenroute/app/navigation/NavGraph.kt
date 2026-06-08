@@ -119,8 +119,14 @@ fun NavGraph(
             arguments = listOf(navArgument("routeId") { type = NavType.IntType })
         ) { backStackEntry ->
             val routeId = backStackEntry.arguments?.getInt("routeId") ?: return@composable
+            val context = LocalContext.current
+            val app = context.applicationContext as GreenRouteApp
             val viewModel: RouteDetailViewModel = viewModel(
-                factory = RouteDetailViewModel.provideFactory(routeRepository, routeId)
+                factory = RouteDetailViewModel.provideFactory(
+                    routeRepository = routeRepository,
+                    directionsRepository = app.directionsRepository,
+                    routeId = routeId
+                )
             )
             RouteDetailScreen(
                 viewModel = viewModel,

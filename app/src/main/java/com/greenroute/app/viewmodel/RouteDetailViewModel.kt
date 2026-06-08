@@ -17,12 +17,14 @@ data class RouteDetailUiState(
     val route: Route? = null,
     val polylinePoints: List<LatLng> = emptyList(),
     val steps: List<DirectionsStep> = emptyList(),
+    val isLoadingDirections: Boolean = false,
     val isLoading: Boolean = true,
     val error: String? = null
 )
 
 class RouteDetailViewModel(
     private val routeRepository: RouteRepository,
+    private val directionsRepository: DirectionsRepository,
     private val routeId: Int
 ) : ViewModel() {
 
@@ -36,18 +38,71 @@ class RouteDetailViewModel(
     private fun loadRoute() {
         viewModelScope.launch {
             val route = routeRepository.getRouteById(routeId)
-            if (route != null) {
-                val polylinePoints = if (!route.encodedPolyline.isNullOrEmpty()) {
-                    DirectionsRepository.decodePolyline(route.encodedPolyline)
-                } else emptyList()
-                _uiState.value = RouteDetailUiState(
-                    route = route,
-                    polylinePoints = polylinePoints,
-                    isLoading = false
-                )
-            } else {
+            if (route == null) {
                 _uiState.value = RouteDetailUiState(isLoading = false, error = "Rota não encontrada")
+                return@launch
             }
+
+            // Show route immediately with any stored polyline
+            val storedPoints = if (!route.encodedPolyline.isNullOrEmpty())
+                DirectionsRepository.decodePolyline(route.encodedPolyline) else emptyList()
+
+            _uiState.value = RouteDetailUiState(
+                route = route,
+                polylinePoints = storedPoints,
+                isLoading = false,
+                isLoadingDirections = true
+            )
+
+            // Always fetch fresh directions to get steps + accurate polyline
+            fetchDirections(route)
+        }
+    }
+
+    private suspend fun fetchDirections(route: Route) {
+        val destination = route.endLocation
+        if (destination.isNullOrEmpty() || destination == "Destino Personalizado") {
+            _uiState.update { it.copy(isLoadingDirections = false) }
+            return
+        }
+
+        val origin = when {
+            route.startLocation == "Minha Localização" -> DEFAULT_ORIGIN
+            !route.startLocation.isNullOrEmpty() -> route.startLocation
+            else -> DEFAULT_ORIGIN
+        }
+
+        val result = directionsRepository.getDirections(
+            origin = origin,
+            destination = destination,
+            transportType = route.transportType ?: "car"
+        )
+
+        if (result != null) {
+            val polylinePoints = DirectionsRepository.decodePolyline(result.encodedPolyline)
+
+            // Update DB with fresh route data
+            val updatedRoute = route.copy(
+                encodedPolyline = result.encodedPolyline,
+                originLat = result.originLat,
+                originLng = result.originLng,
+                destLat = result.destLat,
+                destLng = result.destLng,
+                distance = result.distanceMeters / 1000.0,
+                duration = (result.durationSeconds / 60.0).toInt().coerceAtLeast(1)
+            )
+            routeRepository.update(updatedRoute)
+
+            _uiState.update {
+                it.copy(
+                    route = updatedRoute,
+                    polylinePoints = polylinePoints,
+                    steps = result.steps,
+                    isLoadingDirections = false
+                )
+            }
+        } else {
+            _uiState.update { it.copy(isLoadingDirections = false) }
         }
     }
 
@@ -61,13 +116,16 @@ class RouteDetailViewModel(
     }
 
     companion object {
+        private const val DEFAULT_ORIGIN = "Lisboa, Portugal"
+
         fun provideFactory(
             routeRepository: RouteRepository,
+            directionsRepository: DirectionsRepository,
             routeId: Int
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return RouteDetailViewModel(routeRepository, routeId) as T
+                return RouteDetailViewModel(routeRepository, directionsRepository, routeId) as T
             }
         }
     }

@@ -11,9 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,6 +26,7 @@ import coil.compose.AsyncImage
 import com.greenroute.app.ui.theme.*
 import com.greenroute.app.viewmodel.ProfileUiState
 import com.greenroute.app.viewmodel.ProfileViewModel
+import kotlinx.coroutines.launch
 
 /**
  * Profile screen showing user stats and settings.
@@ -41,6 +40,20 @@ fun ProfileScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState(initial = ProfileUiState())
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
+    // Show error as Snackbar whenever uiState.error changes
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let { msg ->
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    message = msg,
+                    duration = SnackbarDuration.Long
+                )
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -57,6 +70,7 @@ fun ProfileScreen(
                 )
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = BackgroundLight
     ) { padding ->
         if (uiState.isLoading) {

@@ -4,12 +4,16 @@ import android.content.Context
 import android.util.Log
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.NoCredentialException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Companion.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
@@ -82,21 +86,29 @@ class ProfileViewModel(
                 val result = credentialManager.getCredential(context, request)
                 val credential = result.credential
 
-                if (credential is GoogleIdTokenCredential) {
-                    val idToken = credential.idToken
-
-                    // Sign in with Firebase using the Google ID token
-                    val firebaseCredential = GoogleAuthProvider.getCredential(idToken, null)
-                    val authResult = auth.signInWithCredential(firebaseCredential).await()
-                    val firebaseUser = authResult.user
-
-                    if (firebaseUser != null) {
-                        syncFirebaseUser(firebaseUser)
-                    } else {
-                        _uiState.update { it.copy(isLoading = false, error = "Utilizador não encontrado") }
+                when {
+                    // Modern approach: CustomCredential with Google ID token type
+                    credential is CustomCredential &&
+                    credential.type == TYPE_GOOGLE_ID_TOKEN_CREDENTIAL -> {
+                        val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                        firebaseSignIn(googleIdTokenCredential.idToken)
                     }
-                } else {
-                    _uiState.update { it.copy(isLoading = false, error = "Credencial inválida") }
+                    // Fallback: direct GoogleIdTokenCredential (older versions)
+                    credential is GoogleIdTokenCredential -> {
+                        firebaseSignIn(credential.idToken)
+                    }
+                    else -> {
+                        Log.e("ProfileViewModel", "Credencial inesperada: ${credential.type}")
+                        _uiState.update { it.copy(isLoading = false, error = "Tipo de credencial não suportado") }
+                    }
+                }
+            } catch (e: GetCredentialCancellationException) {
+                // User cancelled — not an error
+                _uiState.update { it.copy(isLoading = false, error = null) }
+            } catch (e: NoCredentialException) {
+                Log.e("ProfileViewModel", "Sem credenciais Google", e)
+                _uiState.update {
+                    it.copy(isLoading = false, error = "Nenhuma conta Google encontrada. Adiciona uma conta Google no dispositivo.")
                 }
             } catch (e: Exception) {
                 Log.e("ProfileViewModel", "Login falhou", e)
@@ -105,8 +117,22 @@ class ProfileViewModel(
         }
     }
 
+    private suspend fun firebaseSignIn(idToken: String) {
+        val firebaseCredential = GoogleAuthProvider.getCredential(idToken, null)
+        val authResult = auth.signInWithCredential(firebaseCredential).await()
+        val firebaseUser = authResult.user
+        if (firebaseUser != null) {
+            syncFirebaseUser(firebaseUser)
+        } else {
+            _uiState.update { it.copy(isLoading = false, error = "Login falhou — tenta novamente") }
+        }
+    }
+
     private suspend fun syncFirebaseUser(firebaseUser: FirebaseUser) {
-        val email = firebaseUser.email ?: return
+        val email = firebaseUser.email ?: run {
+            _uiState.update { it.copy(isLoading = false, error = "Conta Google sem e-mail") }
+            return
+        }
         val name = firebaseUser.displayName
         val photoUrl = firebaseUser.photoUrl?.toString()
         val uid = firebaseUser.uid

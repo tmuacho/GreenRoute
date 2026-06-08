@@ -16,7 +16,8 @@
         android:roundIcon="@drawable/app_logo"
         android:supportsRtl="true"
         android:theme="@style/Theme.GreenRoute"
-        tools:targetApi="34">
+        android:extractNativeLibs="true"
+        tools:targetApi="35">
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"

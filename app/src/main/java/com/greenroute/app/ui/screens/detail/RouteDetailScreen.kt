@@ -57,7 +57,7 @@ fun RouteDetailScreen(
         return
     }
 
-    val route = uiState.route
+    val route = uiState.route ?: return
 
     Scaffold(
         modifier = modifier,
@@ -116,7 +116,8 @@ fun RouteDetailScreen(
                 originLat = route.originLat,
                 originLng = route.originLng,
                 destLat = route.destLat,
-                destLng = route.destLng
+                destLng = route.destLng,
+                isLoadingDirections = uiState.isLoadingDirections
             )
 
             LazyColumn(
@@ -179,7 +180,8 @@ private fun RouteMapView(
     originLat: Double?,
     originLng: Double?,
     destLat: Double?,
-    destLng: Double?
+    destLng: Double?,
+    isLoadingDirections: Boolean = false
 ) {
     val defaultLatLng = LatLng(38.7223, -9.1393) // Lisbon
     val initialPosition = if (originLat != null && originLng != null) {
@@ -251,6 +253,35 @@ private fun RouteMapView(
                 )
             }
         }
+
+        // Overlay spinner while fetching fresh directions
+        if (isLoadingDirections) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(12.dp),
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                tonalElevation = 4.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = GreenPrimary,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "A calcular rota…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextPrimary
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -311,7 +342,7 @@ private fun RouteSummaryCard(route: Route, onNavigate: () -> Unit) {
             ) {
                 Icon(Icons.Default.Navigation, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Abrir no Google Maps", fontWeight = FontWeight.Bold)
+                Text("Iniciar Navegação", fontWeight = FontWeight.Bold)
             }
         }
     }
