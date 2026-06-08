@@ -13,7 +13,10 @@ import com.greenroute.app.data.repository.RouteRepository
 import com.greenroute.app.data.repository.UserRepository
 import com.greenroute.app.ui.components.TransportOption
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -27,6 +30,9 @@ data class SearchUiState(
     val isLoading: Boolean = false,
     val isStartingRoute: Boolean = false,
     val isEcoMode: Boolean = false,
+    // GPS location as "lat,lng" string — null until permission granted
+    val currentLocationString: String? = null,
+    val hasLocationPermission: Boolean = false,
     val error: String? = null
 )
 
@@ -50,6 +56,62 @@ class SearchViewModel(
         loadDefaultOptions()
         observePreferences()
     }
+
+    // ── Location ─────────────────────────────────────────────────────────────
+
+    /** Called by the UI once location permission is granted and GPS coords are obtained. */
+    fun setCurrentLocation(lat: Double, lng: Double) {
+        val locString = "$lat,$lng"
+        _uiState.update { it.copy(currentLocationString = locString, hasLocationPermission = true) }
+        // If a destination is already selected, re-fetch with real origin
+        val dest = _uiState.value.destination
+        if (dest.isNotEmpty()) fetchTransportOptions(dest)
+    }
+
+    /** Called when permission is permanently denied — fall back to default origin. */
+    fun setLocationPermissionDenied() {
+        _uiState.update { it.copy(hasLocationPermission = false, currentLocationString = null) }
+    }
+
+    // ── Search / autocomplete ─────────────────────────────────────────────────
+
+    fun updateSearchQuery(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
+
+        searchJob?.cancel()
+        if (query.length > 2) {
+            searchJob = viewModelScope.launch {
+                delay(300)
+                val predictions = placeRepository.searchPlaces(getApplication(), query)
+                _uiState.update { it.copy(locationPredictions = predictions) }
+            }
+        } else {
+            _uiState.update { it.copy(locationPredictions = emptyList()) }
+        }
+    }
+
+    fun clearPredictions() {
+        _uiState.update { it.copy(locationPredictions = emptyList()) }
+    }
+
+    fun selectPrediction(prediction: AutocompletePrediction) {
+        val primary = prediction.getPrimaryText(null).toString()
+        val full = buildString {
+            append(primary)
+            val secondary = prediction.getSecondaryText(null).toString()
+            if (secondary.isNotEmpty()) append(", $secondary")
+        }
+        _uiState.update {
+            it.copy(
+                searchQuery = primary,
+                destination = full,
+                locationPredictions = emptyList()
+            )
+        }
+        fetchTransportOptions(full)
+    }
+
+    // ── Transport options ─────────────────────────────────────────────────────
 
     private fun observePreferences() {
         viewModelScope.launch {
@@ -76,48 +138,47 @@ class SearchViewModel(
         updateOptionsList(defaultOptions, _uiState.value.isEcoMode)
     }
 
-    fun updateSearchQuery(query: String) {
-        _uiState.update { it.copy(searchQuery = query) }
-
-        searchJob?.cancel()
-        if (query.length > 2) {
-            searchJob = viewModelScope.launch {
-                delay(300)
-                val predictions = placeRepository.searchPlaces(getApplication(), query)
-                _uiState.update { it.copy(locationPredictions = predictions) }
-            }
-        } else {
-            _uiState.update { it.copy(locationPredictions = emptyList()) }
-        }
-    }
-
-    fun selectPrediction(prediction: AutocompletePrediction) {
-        val destinationName = prediction.getPrimaryText(null).toString()
-        _uiState.update {
-            it.copy(
-                searchQuery = destinationName,
-                destination = destinationName,
-                locationPredictions = emptyList()
-            )
-        }
-        fetchTransportOptions(destinationName)
-    }
-
+    /**
+     * Fetch real transport durations + distances for [destination] via the Directions API.
+     * All 6 transport modes are queried in parallel.
+     */
     private fun fetchTransportOptions(destination: String) {
-        viewModelScope.launch {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            delay(300)
-            val options = listOf(
-                TransportOption("car", 12, 250.0, 1.8),
-                TransportOption("bus", 25, 380.0, 5.1),
-                TransportOption("train", 30, 190.0, 5.0),
-                TransportOption("walk", 80, 0.0, 4.5),
-                TransportOption("metro", 22, 200.0, 4.7),
-                TransportOption("bike", 25, 0.0, 4.5)
-            )
+            val origin = _uiState.value.currentLocationString ?: DEFAULT_ORIGIN
+
+            val transportTypes = listOf("car", "bus", "train", "metro", "walk", "bike")
+
+            val options: List<TransportOption> = coroutineScope {
+                transportTypes.map { type ->
+                    async {
+                        val result = directionsRepository.getDirections(origin, destination, type)
+                        if (result != null && result.distanceMeters > 0) {
+                            val distKm = result.distanceMeters / 1000.0
+                            val durMin = (result.durationSeconds / 60.0).toInt().coerceAtLeast(1)
+                            val co2 = routeRepository.calculateCo2Emission(type, distKm)
+                            TransportOption(type = type, duration = durMin, co2Emission = co2, distance = distKm)
+                        } else {
+                            fallbackOption(type)
+                        }
+                    }
+                }.awaitAll()
+            }
+
             updateOptionsList(options, _uiState.value.isEcoMode)
             _uiState.update { it.copy(isLoading = false) }
         }
+    }
+
+    private fun fallbackOption(type: String) = when (type) {
+        "car"   -> TransportOption("car",   12, 250.0, 1.8)
+        "bus"   -> TransportOption("bus",   25, 380.0, 5.1)
+        "train" -> TransportOption("train", 30, 190.0, 5.0)
+        "metro" -> TransportOption("metro", 22, 200.0, 4.7)
+        "walk"  -> TransportOption("walk",  80,   0.0, 4.5)
+        "bike"  -> TransportOption("bike",  25,   0.0, 4.5)
+        else    -> TransportOption(type,    20,   0.0, 2.0)
     }
 
     private fun updateOptionsList(options: List<TransportOption>, isEcoMode: Boolean) {
@@ -131,15 +192,18 @@ class SearchViewModel(
         _uiState.update { it.copy(selectedTransport = type) }
     }
 
+    // ── Start route ───────────────────────────────────────────────────────────
+
     fun startRoute(option: TransportOption) {
         val dest = _uiState.value.destination
+        val origin = _uiState.value.currentLocationString ?: DEFAULT_ORIGIN
 
         viewModelScope.launch {
             _uiState.update { it.copy(isStartingRoute = true) }
 
             val directions = if (dest.isNotEmpty()) {
                 directionsRepository.getDirections(
-                    origin = DEFAULT_ORIGIN,
+                    origin = origin,
                     destination = dest,
                     transportType = option.type
                 )
@@ -153,8 +217,10 @@ class SearchViewModel(
                 option.co2Emission
             }
 
+            val startLabel = if (_uiState.value.currentLocationString != null) "Minha Localização" else DEFAULT_ORIGIN
+
             val route = Route(
-                startLocation = "Minha Localização",
+                startLocation = startLabel,
                 endLocation = dest.ifEmpty { "Destino Personalizado" },
                 transportType = option.type,
                 co2Emission = co2Emission,
@@ -176,7 +242,7 @@ class SearchViewModel(
     }
 
     companion object {
-        private const val DEFAULT_ORIGIN = "Lisboa, Portugal"
+        const val DEFAULT_ORIGIN = "Lisboa, Portugal"
 
         fun provideFactory(
             application: Application,

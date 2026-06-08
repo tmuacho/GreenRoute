@@ -66,9 +66,12 @@ class RouteDetailViewModel(
             return
         }
 
+        // Prefer stored GPS coords; fall back to startLocation text; last resort: Lisbon
         val origin = when {
-            route.startLocation == "Minha Localização" -> DEFAULT_ORIGIN
-            !route.startLocation.isNullOrEmpty() -> route.startLocation
+            route.originLat != null && route.originLng != null ->
+                "${route.originLat},${route.originLng}"
+            !route.startLocation.isNullOrEmpty() &&
+            route.startLocation != "Minha Localização" -> route.startLocation
             else -> DEFAULT_ORIGIN
         }
 
