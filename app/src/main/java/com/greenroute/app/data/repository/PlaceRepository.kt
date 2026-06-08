@@ -23,18 +23,23 @@ data class AutocompleteResult(
 }
 
 /**
- * Repository for SavedPlace operations and Google Places autocomplete.
+ * Repository for SavedPlace operations and Places autocomplete.
  *
- * Autocomplete uses the Places API (New) via plain HTTP — avoids the legacy SDK
- * endpoint (findAutocompletePredictions) which requires the deprecated
- * "Places API" to be enabled and is not available when only
- * "Places API (New)" is enabled in Google Cloud Console.
+ * Autocomplete uses the Places API (New) via HTTP POST — bypasses the legacy
+ * SDK endpoint which requires "Places API (Legacy)" to be enabled (error 9011).
  *
  * Endpoint: POST https://places.googleapis.com/v1/places:autocomplete
+ *
+ * When the API key has "Android app" restrictions in Google Cloud Console,
+ * Google requires [X-Android-Package] and [X-Android-Cert] headers.
+ * Pass [appPackageName] and [signatureSha1] from GreenRouteApp so these
+ * are set automatically on every request.
  */
 class PlaceRepository(
     private val savedPlaceDao: SavedPlaceDao,
-    private val apiKey: String
+    private val apiKey: String,
+    private val appPackageName: String = "",
+    private val signatureSha1: String  = ""
 ) {
     val allSavedPlaces: Flow<List<SavedPlace>> = savedPlaceDao.getAllSavedPlaces()
 
@@ -52,7 +57,7 @@ class PlaceRepository(
 
     /**
      * Search for places using the Places Autocomplete (New) REST API.
-     * Returns [Result] so callers can surface errors in the UI.
+     * Returns [Result] so the caller can show errors in the UI.
      */
     suspend fun searchPlaces(query: String): Result<List<AutocompleteResult>> {
         if (query.length < 2) return Result.success(emptyList())
@@ -63,7 +68,16 @@ class PlaceRepository(
                 val conn = URL(AUTOCOMPLETE_URL).openConnection() as HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                // Primary auth header
                 conn.setRequestProperty("X-Goog-Api-Key", apiKey)
+                // Android app restriction headers — required when the API key is restricted
+                // to "Android apps" in Google Cloud Console
+                if (appPackageName.isNotEmpty()) {
+                    conn.setRequestProperty("X-Android-Package", appPackageName)
+                }
+                if (signatureSha1.isNotEmpty()) {
+                    conn.setRequestProperty("X-Android-Cert", signatureSha1)
+                }
                 conn.connectTimeout = 6_000
                 conn.readTimeout   = 6_000
                 conn.doOutput = true
@@ -120,7 +134,6 @@ class PlaceRepository(
 
     private companion object {
         const val TAG = "PlaceRepository"
-        const val AUTOCOMPLETE_URL =
-            "https://places.googleapis.com/v1/places:autocomplete"
+        const val AUTOCOMPLETE_URL = "https://places.googleapis.com/v1/places:autocomplete"
     }
 }
