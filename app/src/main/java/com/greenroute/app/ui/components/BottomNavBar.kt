@@ -10,6 +10,7 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.greenroute.app.ui.theme.CardBackground
 import com.greenroute.app.ui.theme.GreenPrimary
 import com.greenroute.app.ui.theme.TextSecondary
 
@@ -59,7 +60,9 @@ fun BottomNavBar(
     )
 
     NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surface,
+        // Use explicit white — avoids Material3 elevation tinting that makes the
+        // nav bar look different between devices / OS versions
+        containerColor = CardBackground,
         contentColor = GreenPrimary
     ) {
         items.forEach { item ->

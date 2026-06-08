@@ -7,7 +7,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
@@ -28,6 +28,9 @@ private val LightColorScheme = lightColorScheme(
     onSurface = TextPrimary,
     surfaceVariant = GreenSurface,
     onSurfaceVariant = TextSecondary,
+    // Transparent tint prevents Material3 from applying a green elevation overlay
+    // to surfaces like NavigationBar, ensuring the same white on all devices
+    surfaceTint = Color.Transparent,
     error = StatusError,
     onError = TextOnGreen
 )
@@ -49,6 +52,7 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = TextOnGreen,
     surfaceVariant = GreenDark,
     onSurfaceVariant = GreenLight,
+    surfaceTint = Color.Transparent,
     error = StatusError,
     onError = GreenDark
 )
@@ -64,8 +68,13 @@ fun GreenRouteTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            // With enableEdgeToEdge() the system bars are transparent —
+            // do NOT set window.statusBarColor (deprecated in API 35, causes
+            // inconsistency across devices). Just control icon appearance.
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !darkTheme      // dark icons on green bg
+                isAppearanceLightNavigationBars = !darkTheme  // dark icons on white nav bar
+            }
         }
     }
 

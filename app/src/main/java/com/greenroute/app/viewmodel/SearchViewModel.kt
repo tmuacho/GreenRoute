@@ -53,7 +53,8 @@ class SearchViewModel(
     private var searchJob: Job? = null
 
     init {
-        loadDefaultOptions()
+        // Do NOT pre-load default options — the list stays empty until a
+        // destination is selected so the user sees a clean empty state
         observePreferences()
     }
 
@@ -108,6 +109,8 @@ class SearchViewModel(
                 locationPredictions = emptyList()
             )
         }
+        // Reset Places session token — new session starts after selection
+        placeRepository.resetSessionToken()
         fetchTransportOptions(full)
     }
 

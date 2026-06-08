@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.greenroute.app.ui.components.TransportOptionItem
@@ -45,7 +46,7 @@ fun SearchScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
-    // ── Navigation events ────────────────────────────────────────────────────
+    // ── Navigation events ─────────────────────────────────────────────────────
     LaunchedEffect(Unit) {
         viewModel.navigationEvents.collect { event ->
             when (event) {
@@ -54,35 +55,28 @@ fun SearchScreen(
         }
     }
 
-    // ── Location permission + GPS ─────────────────────────────────────────────
+    // ── Location permission + GPS ──────────────────────────────────────────────
     val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
+        ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        if (isGranted) {
-            getLastLocation(context)?.let { (lat, lng) ->
-                viewModel.setCurrentLocation(lat, lng)
-            }
-        } else {
-            viewModel.setLocationPermissionDenied()
-        }
+        if (isGranted) getLastLocation(context)?.let { (lat, lng) -> viewModel.setCurrentLocation(lat, lng) }
+        else viewModel.setLocationPermissionDenied()
     }
-
     LaunchedEffect(Unit) {
         val granted = ContextCompat.checkSelfPermission(
             context, Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
-
-        if (granted) {
-            getLastLocation(context)?.let { (lat, lng) ->
-                viewModel.setCurrentLocation(lat, lng)
-            }
-        } else {
-            permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-        }
+        if (granted) getLastLocation(context)?.let { (lat, lng) -> viewModel.setCurrentLocation(lat, lng) }
+        else permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
-    // Keep text field in sync
-    var searchText by remember(uiState.searchQuery) { mutableStateOf(uiState.searchQuery) }
+    // Keep text in sync; reset when user clears the field
+    var searchText by remember { mutableStateOf("") }
+    LaunchedEffect(uiState.searchQuery) {
+        if (uiState.searchQuery.isEmpty()) searchText = ""
+    }
+
+    val hasDestination = uiState.destination.isNotEmpty()
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(
@@ -106,13 +100,9 @@ fun SearchScreen(
                     // Back + title
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onBackClick) {
-                            Icon(
-                                imageVector = Icons.Default.ArrowBack,
-                                contentDescription = "Voltar",
-                                tint = TextOnGreen
-                            )
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = TextOnGreen)
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(Modifier.width(8.dp))
                         Text(
                             text = "Pesquisar destino",
                             style = MaterialTheme.typography.titleLarge,
@@ -121,55 +111,53 @@ fun SearchScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(Modifier.height(12.dp))
 
                     // Origin indicator
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.MyLocation,
+                            Icons.Default.MyLocation,
                             contentDescription = null,
                             tint = TextOnGreen.copy(alpha = 0.8f),
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(14.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(Modifier.width(6.dp))
                         Text(
                             text = if (uiState.currentLocationString != null)
                                 "A partir da tua localização atual"
-                            else
-                                "A partir de Lisboa, Portugal",
+                            else "A partir de Lisboa, Portugal",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextOnGreen.copy(alpha = 0.85f)
+                            color = TextOnGreen.copy(alpha = 0.8f)
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(Modifier.height(10.dp))
 
-                    // Destination search field with integrated autocomplete dropdown
+                    // ── Search field + autocomplete dropdown ──────────────────
                     ExposedDropdownMenuBox(
                         expanded = uiState.locationPredictions.isNotEmpty(),
-                        onExpandedChange = { expanded ->
-                            if (!expanded) viewModel.clearPredictions()
-                        }
+                        onExpandedChange = { if (!it) viewModel.clearPredictions() }
                     ) {
                         OutlinedTextField(
                             value = searchText,
-                            onValueChange = {
-                                searchText = it
-                                viewModel.updateSearchQuery(it)
+                            onValueChange = { v ->
+                                searchText = v
+                                viewModel.updateSearchQuery(v)
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .menuAnchor(),
-                            placeholder = { Text("Para onde queres ir?") },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = null,
-                                    tint = TextSecondary
+                                .menuAnchor(MenuAnchorType.PrimaryEditable),
+                            placeholder = {
+                                Text(
+                                    "Para onde queres ir?",
+                                    color = TextSecondary
                                 )
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Search, contentDescription = null, tint = TextSecondary)
                             },
                             trailingIcon = {
                                 if (searchText.isNotEmpty()) {
@@ -177,11 +165,7 @@ fun SearchScreen(
                                         searchText = ""
                                         viewModel.updateSearchQuery("")
                                     }) {
-                                        Icon(
-                                            Icons.Default.Clear,
-                                            contentDescription = "Limpar",
-                                            tint = TextSecondary
-                                        )
+                                        Icon(Icons.Default.Clear, contentDescription = "Limpar", tint = TextSecondary)
                                     }
                                 }
                             },
@@ -190,12 +174,14 @@ fun SearchScreen(
                                 focusedContainerColor = CardBackground,
                                 unfocusedContainerColor = CardBackground,
                                 focusedBorderColor = GreenLight,
-                                unfocusedBorderColor = CardBackground
+                                unfocusedBorderColor = CardBackground,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
                             ),
                             singleLine = true
                         )
 
-                        // Autocomplete dropdown — appears as popup below the text field
+                        // Suggestions popup — appears below text field, not clipped by Surface
                         ExposedDropdownMenu(
                             expanded = uiState.locationPredictions.isNotEmpty(),
                             onDismissRequest = { viewModel.clearPredictions() },
@@ -209,24 +195,24 @@ fun SearchScreen(
                                                 text = prediction.getPrimaryText(null).toString(),
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 fontWeight = FontWeight.Medium,
-                                                color = TextPrimary
+                                                color = TextPrimary,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                             val secondary = prediction.getSecondaryText(null).toString()
                                             if (secondary.isNotEmpty()) {
                                                 Text(
                                                     text = secondary,
                                                     style = MaterialTheme.typography.bodySmall,
-                                                    color = TextSecondary
+                                                    color = TextSecondary,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             }
                                         }
                                     },
                                     leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Default.LocationOn,
-                                            contentDescription = null,
-                                            tint = GreenPrimary
-                                        )
+                                        Icon(Icons.Default.LocationOn, null, tint = GreenPrimary)
                                     },
                                     onClick = { viewModel.selectPrediction(prediction) }
                                 )
@@ -236,100 +222,132 @@ fun SearchScreen(
                 }
             }
 
-            // ── Transport filter chips ────────────────────────────────────────
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 16.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                val transportTypes = listOf("car", "bus", "train", "metro", "walk", "bike")
-                items(transportTypes) { type ->
-                    val isSelected = uiState.selectedTransport == type
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = {
-                            viewModel.selectTransport(if (isSelected) "" else type)
-                        },
-                        label = { Text(getTransportName(type)) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = getTransportIcon(type),
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = getTransportColor(type).copy(alpha = 0.2f),
-                            selectedLabelColor = getTransportColor(type),
-                            selectedLeadingIconColor = getTransportColor(type)
-                        )
-                    )
-                }
-            }
-
-            // ── Results header ────────────────────────────────────────────────
-            Text(
-                text = if (uiState.destination.isNotEmpty()) "Opções para ${uiState.searchQuery}"
-                       else "Opções de transporte",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            )
-
-            // ── Transport options ─────────────────────────────────────────────
-            if (uiState.isLoading) {
+            // ── Content area: empty state OR filter chips + results ───────────
+            if (!hasDestination) {
+                // ── Empty state — shown before any destination is typed/selected
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f)
-                        .padding(32.dp),
+                        .weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = GreenPrimary)
-                        Spacer(Modifier.height(12.dp))
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            tint = GreenLight,
+                            modifier = Modifier.size(72.dp)
+                        )
+                        Spacer(Modifier.height(16.dp))
                         Text(
-                            "A calcular rotas…",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary
+                            text = "Para onde queres ir?",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = "Escreve o destino acima para ver as opções de transporte e as emissões de CO₂.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextSecondary,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
                 }
             } else {
-                val filteredOptions = if (uiState.selectedTransport.isNullOrEmpty()) {
-                    uiState.transportOptions
-                } else {
-                    uiState.transportOptions.filter { it.type == uiState.selectedTransport }
-                }
-
-                LazyColumn(
+                // ── Transport filter chips
+                LazyRow(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .padding(top = 16.dp, bottom = 8.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(filteredOptions) { option ->
-                        TransportOptionItem(
-                            option = option,
-                            onSelect = { viewModel.startRoute(option) }
+                    val transportTypes = listOf("car", "bus", "train", "metro", "walk", "bike")
+                    items(transportTypes) { type ->
+                        val isSelected = uiState.selectedTransport == type
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { viewModel.selectTransport(if (isSelected) "" else type) },
+                            label = { Text(getTransportName(type)) },
+                            leadingIcon = {
+                                Icon(
+                                    getTransportIcon(type),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = getTransportColor(type).copy(alpha = 0.2f),
+                                selectedLabelColor = getTransportColor(type),
+                                selectedLeadingIconColor = getTransportColor(type)
+                            )
                         )
+                    }
+                }
+
+                // ── Results header
+                Text(
+                    text = "Opções para ${uiState.searchQuery}",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                // ── Loading / transport list
+                if (uiState.isLoading) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(color = GreenPrimary)
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "A calcular rotas…",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+                } else {
+                    val filteredOptions = if (uiState.selectedTransport.isNullOrEmpty())
+                        uiState.transportOptions
+                    else
+                        uiState.transportOptions.filter { it.type == uiState.selectedTransport }
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(filteredOptions) { option ->
+                            TransportOptionItem(
+                                option = option,
+                                onSelect = { viewModel.startRoute(option) }
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // ── Full-screen loading overlay when saving route ─────────────────────
+        // ── Full-screen overlay while route is being saved ────────────────────
         if (uiState.isStartingRoute) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.4f)),
+                    .background(Color.Black.copy(alpha = 0.45f)),
                 contentAlignment = Alignment.Center
             ) {
                 Card(
@@ -342,11 +360,7 @@ fun SearchScreen(
                     ) {
                         CircularProgressIndicator(color = GreenPrimary)
                         Spacer(Modifier.height(12.dp))
-                        Text(
-                            "A calcular rota…",
-                            fontWeight = FontWeight.Medium,
-                            color = TextPrimary
-                        )
+                        Text("A calcular rota…", fontWeight = FontWeight.Medium, color = TextPrimary)
                     }
                 }
             }
@@ -354,18 +368,15 @@ fun SearchScreen(
     }
 }
 
-// ── Location helper ───────────────────────────────────────────────────────────
+// ── Location helper ──────────────────────────────────────────────────────────
 
 @SuppressLint("MissingPermission")
 private fun getLastLocation(context: Context): Pair<Double, Double>? {
     return try {
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        val location =
-            lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                ?: lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-                ?: lm.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
-        location?.let { Pair(it.latitude, it.longitude) }
-    } catch (_: Exception) {
-        null
-    }
+        val loc = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            ?: lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+            ?: lm.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
+        loc?.let { Pair(it.latitude, it.longitude) }
+    } catch (_: Exception) { null }
 }
