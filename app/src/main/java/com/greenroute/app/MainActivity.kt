@@ -12,6 +12,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.greenroute.app.data.repository.PlaceRepository
+import com.greenroute.app.data.repository.RouteRepository
+import com.greenroute.app.data.repository.UserRepository
 import com.greenroute.app.navigation.NavGraph
 import com.greenroute.app.navigation.Routes
 import com.greenroute.app.ui.components.BottomNavBar
@@ -31,7 +34,8 @@ class MainActivity : ComponentActivity() {
             GreenRouteTheme {
                 GreenRouteApp(
                     routeRepository = app.routeRepository,
-                    userRepository = app.userRepository
+                    userRepository = app.userRepository,
+                    placeRepository = app.placeRepository
                 )
             }
         }
@@ -43,8 +47,9 @@ class MainActivity : ComponentActivity() {
  */
 @Composable
 fun GreenRouteApp(
-    routeRepository: com.greenroute.app.data.repository.RouteRepository,
-    userRepository: com.greenroute.app.data.repository.UserRepository
+    routeRepository: RouteRepository,
+    userRepository: UserRepository,
+    placeRepository: PlaceRepository
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -78,6 +83,7 @@ fun GreenRouteApp(
             navController = navController,
             routeRepository = routeRepository,
             userRepository = userRepository,
+            placeRepository = placeRepository,
             modifier = Modifier.padding(innerPadding)
         )
     }

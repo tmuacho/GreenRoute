@@ -27,6 +27,7 @@ import com.greenroute.app.viewmodel.SavedViewModel
 @Composable
 fun SavedScreen(
     viewModel: SavedViewModel,
+    onRouteClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState(initial = SavedUiState())
@@ -35,6 +36,7 @@ fun SavedScreen(
         uiState = uiState,
         onRemoveSaved = { viewModel.removeSavedRoute(it) },
         onDelete = { viewModel.deleteRoute(it) },
+        onRouteClick = onRouteClick,
         modifier = modifier
     )
 }
@@ -45,6 +47,7 @@ fun SavedScreenContent(
     uiState: SavedUiState,
     onRemoveSaved: (Route) -> Unit,
     onDelete: (Route) -> Unit,
+    onRouteClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -117,7 +120,7 @@ fun SavedScreenContent(
                     ) { route ->
                         RouteCard(
                             route = route,
-                            onCardClick = {},
+                            onCardClick = { onRouteClick(route.id) },
                             onSaveClick = { onRemoveSaved(route) },
                             onDeleteClick = { onDelete(route) }
                         )

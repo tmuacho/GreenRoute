@@ -29,7 +29,12 @@ data class Route(
     val transportType: String? = null,
     val co2Emission: Double? = null,
     val dateTime: Long? = null,
-    val distance: Double = 0.0,        // Distance in km
-    val duration: Int = 0,              // Duration in minutes
-    val isSaved: Boolean = false        // Whether the route is saved/bookmarked
+    val distance: Double = 0.0,
+    val duration: Int = 0,
+    val isSaved: Boolean = false,
+    val encodedPolyline: String? = null,
+    val originLat: Double? = null,
+    val originLng: Double? = null,
+    val destLat: Double? = null,
+    val destLng: Double? = null
 )

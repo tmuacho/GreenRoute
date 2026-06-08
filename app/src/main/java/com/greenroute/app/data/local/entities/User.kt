@@ -10,6 +10,7 @@ import androidx.room.PrimaryKey
 data class User(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
+    val googleId: String? = null,
     val name: String? = null,
     val email: String,
     val profileImageUri: String? = null,

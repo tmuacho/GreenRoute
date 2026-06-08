@@ -1,6 +1,8 @@
 package com.greenroute.app.ui.screens.profile
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -15,9 +17,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.greenroute.app.ui.theme.*
 import com.greenroute.app.viewmodel.ProfileUiState
 import com.greenroute.app.viewmodel.ProfileViewModel
@@ -33,6 +40,7 @@ fun ProfileScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState(initial = ProfileUiState())
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -64,95 +72,173 @@ fun ProfileScreen(
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // User Avatar
-                Box(
-                    modifier = Modifier
-                        .size(100.dp)
-                        .clip(CircleShape)
-                        .background(GreenLight),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = uiState.user?.name?.firstOrNull()?.toString() ?: "U",
-                        style = MaterialTheme.typography.displayMedium,
-                        color = White,
-                        fontWeight = FontWeight.Bold
+                if (uiState.user == null) {
+                    // Login State
+                    LoginSection(onSignInClick = { viewModel.signInWithGoogle(context) })
+                } else {
+                    // Profile State
+                    UserHeader(
+                        name = uiState.user?.name ?: "Utilizador",
+                        email = uiState.user?.email ?: "",
+                        photoUrl = uiState.user?.profileImageUri
                     )
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Text(
-                    text = uiState.user?.name ?: "Utilizador",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-                
-                Text(
-                    text = uiState.user?.email ?: "",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary
-                )
+                    
+                    Spacer(modifier = Modifier.height(32.dp))
 
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // Stats Cards
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    StatCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.DirectionsCar,
-                        label = "Viagens",
-                        value = "${uiState.user?.totalRoutes ?: 0}"
-                    )
-                    StatCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.Eco,
-                        label = "Poupado",
-                        value = "${uiState.user?.totalEmissionSaved?.toInt() ?: 0}g"
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // Settings Section
-                Text(
-                    text = "Preferências",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
-                    modifier = Modifier.align(Alignment.Start)
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                ) {
-                    Column {
-                        SettingSwitchItem(
+                    // Stats Cards
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        StatCard(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Default.DirectionsCar,
+                            label = "Viagens",
+                            value = "${uiState.user?.totalRoutes ?: 0}"
+                        )
+                        StatCard(
+                            modifier = Modifier.weight(1f),
                             icon = Icons.Default.Eco,
-                            title = "Modo Ecológico",
-                            checked = uiState.preferences?.ecoModeEnabled == true,
-                            onCheckedChange = { viewModel.toggleEcoMode(it) }
+                            label = "Poupado",
+                            value = "${uiState.user?.totalEmissionSaved?.toInt() ?: 0}g"
                         )
-                        Divider(color = BackgroundLight)
-                        SettingSwitchItem(
-                            icon = Icons.Default.Notifications,
-                            title = "Notificações",
-                            checked = uiState.preferences?.notificationsEnabled == true,
-                            onCheckedChange = { viewModel.toggleNotifications(it) }
-                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    // Settings Section
+                    Text(
+                        text = "Preferências",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        modifier = Modifier.align(Alignment.Start)
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Column {
+                            SettingSwitchItem(
+                                icon = Icons.Default.Eco,
+                                title = "Modo Ecológico",
+                                checked = uiState.preferences?.ecoModeEnabled == true,
+                                onCheckedChange = { viewModel.toggleEcoMode(it) }
+                            )
+                            Divider(color = BackgroundLight)
+                            SettingSwitchItem(
+                                icon = Icons.Default.Notifications,
+                                title = "Notificações",
+                                checked = uiState.preferences?.notificationsEnabled == true,
+                                onCheckedChange = { viewModel.toggleNotifications(it) }
+                            )
+                            Divider(color = BackgroundLight)
+                            SettingActionItem(
+                                icon = Icons.Default.Logout,
+                                title = "Sair da Conta",
+                                titleColor = Color.Red,
+                                onClick = { viewModel.logout(context) }
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun LoginSection(onSignInClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.Default.AccountCircle,
+            contentDescription = null,
+            modifier = Modifier.size(120.dp),
+            tint = GreenLight
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = "Bem-vindo ao GreenRoute",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = TextPrimary
+        )
+        Text(
+            text = "Inicia sessão para guardar as tuas rotas e ver estatísticas.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextSecondary,
+            modifier = Modifier.padding(horizontal = 32.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(32.dp))
+        Button(
+            onClick = onSignInClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(Icons.Default.Login, contentDescription = null)
+            Spacer(modifier = Modifier.width(12.dp))
+            Text("Entrar com Google", fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+fun UserHeader(name: String, email: String, photoUrl: String?) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        if (photoUrl != null) {
+            AsyncImage(
+                model = photoUrl,
+                contentDescription = "Foto de perfil",
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(CircleShape)
+                    .background(GreenLight),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = name.firstOrNull()?.toString() ?: "U",
+                    style = MaterialTheme.typography.displayMedium,
+                    color = White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Text(
+            text = name,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = TextPrimary
+        )
+        
+        Text(
+            text = email,
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextSecondary
+        )
     }
 }
 
@@ -218,5 +304,31 @@ fun SettingSwitchItem(
                 checkedTrackColor = GreenPrimary
             )
         )
+    }
+}
+
+@Composable
+fun SettingActionItem(
+    icon: ImageVector,
+    title: String,
+    titleColor: Color = TextPrimary,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(imageVector = icon, contentDescription = null, tint = if (titleColor == Color.Red) titleColor else TextSecondary)
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = titleColor,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextHint)
     }
 }

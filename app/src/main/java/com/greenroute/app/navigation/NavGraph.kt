@@ -6,10 +6,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
+import com.greenroute.app.GreenRouteApp
+import com.greenroute.app.data.repository.PlaceRepository
 import com.greenroute.app.data.repository.RouteRepository
 import com.greenroute.app.data.repository.UserRepository
+import com.greenroute.app.ui.screens.detail.RouteDetailScreen
 import com.greenroute.app.ui.screens.home.HomeScreen
 import com.greenroute.app.ui.screens.profile.ProfileScreen
 import com.greenroute.app.ui.screens.recent.RecentScreen
@@ -17,25 +22,21 @@ import com.greenroute.app.ui.screens.saved.SavedScreen
 import com.greenroute.app.ui.screens.search.SearchScreen
 import com.greenroute.app.viewmodel.*
 
-/**
- * Navigation routes for the app.
- */
 object Routes {
     const val HOME = "home"
     const val SAVED = "saved"
     const val RECENT = "recent"
     const val SEARCH = "search"
     const val PROFILE = "profile"
+    const val ROUTE_DETAIL = "route_detail"
 }
 
-/**
- * Navigation graph for the GreenRoute app.
- */
 @Composable
 fun NavGraph(
     navController: NavHostController,
     routeRepository: RouteRepository,
     userRepository: UserRepository,
+    placeRepository: PlaceRepository,
     modifier: Modifier = Modifier
 ) {
     NavHost(
@@ -50,7 +51,8 @@ fun NavGraph(
             HomeScreen(
                 viewModel = viewModel,
                 onSearchClick = { navController.navigate(Routes.SEARCH) },
-                onProfileClick = { navController.navigate(Routes.PROFILE) }
+                onProfileClick = { navController.navigate(Routes.PROFILE) },
+                onRouteClick = { routeId -> navController.navigate("${Routes.ROUTE_DETAIL}/$routeId") }
             )
         }
 
@@ -68,23 +70,34 @@ fun NavGraph(
             val viewModel: SavedViewModel = viewModel(
                 factory = SavedViewModel.provideFactory(routeRepository)
             )
-            SavedScreen(viewModel = viewModel)
+            SavedScreen(
+                viewModel = viewModel,
+                onRouteClick = { routeId -> navController.navigate("${Routes.ROUTE_DETAIL}/$routeId") }
+            )
         }
 
         composable(Routes.RECENT) {
             val viewModel: RecentViewModel = viewModel(
                 factory = RecentViewModel.provideFactory(routeRepository)
             )
-            RecentScreen(viewModel = viewModel)
+            RecentScreen(
+                viewModel = viewModel,
+                onRouteClick = { routeId ->
+                    navController.navigate("${Routes.ROUTE_DETAIL}/$routeId")
+                }
+            )
         }
 
         composable(Routes.SEARCH) {
             val context = LocalContext.current
+            val app = context.applicationContext as GreenRouteApp
             val viewModel: SearchViewModel = viewModel(
                 factory = SearchViewModel.provideFactory(
                     application = context.applicationContext as Application,
                     routeRepository = routeRepository,
-                    userRepository = userRepository
+                    userRepository = userRepository,
+                    placeRepository = placeRepository,
+                    directionsRepository = app.directionsRepository
                 )
             )
             SearchScreen(
@@ -92,10 +105,26 @@ fun NavGraph(
                 onBackClick = { navController.popBackStack() },
                 onNavigateToRecent = {
                     navController.navigate(Routes.RECENT) {
-                        // Pop up to home to avoid back stack loop
                         popUpTo(Routes.HOME)
                     }
+                },
+                onNavigateToDetail = { routeId ->
+                    navController.navigate("${Routes.ROUTE_DETAIL}/$routeId")
                 }
+            )
+        }
+
+        composable(
+            route = "${Routes.ROUTE_DETAIL}/{routeId}",
+            arguments = listOf(navArgument("routeId") { type = NavType.IntType })
+        ) { backStackEntry ->
+            val routeId = backStackEntry.arguments?.getInt("routeId") ?: return@composable
+            val viewModel: RouteDetailViewModel = viewModel(
+                factory = RouteDetailViewModel.provideFactory(routeRepository, routeId)
+            )
+            RouteDetailScreen(
+                viewModel = viewModel,
+                onBackClick = { navController.popBackStack() }
             )
         }
     }

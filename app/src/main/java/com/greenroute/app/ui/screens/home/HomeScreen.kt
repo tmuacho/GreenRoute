@@ -32,6 +32,7 @@ fun HomeScreen(
     viewModel: HomeViewModel,
     onSearchClick: () -> Unit,
     onProfileClick: () -> Unit = {},
+    onRouteClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -88,8 +89,7 @@ fun HomeScreen(
                         .padding(32.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    // Temporarily using a simple Text instead of CircularProgressIndicator due to runtime error
-                    Text("A carregar...", color = GreenPrimary)
+                    CircularProgressIndicator(color = GreenPrimary)
                 }
             }
         }
@@ -98,7 +98,7 @@ fun HomeScreen(
         items(uiState.recentRoutes) { route ->
             RouteCard(
                 route = route,
-                onCardClick = {},
+                onCardClick = { onRouteClick(route.id) },
                 onSaveClick = { viewModel.toggleSaveRoute(route) },
                 onDeleteClick = { viewModel.deleteRoute(route) },
                 modifier = Modifier

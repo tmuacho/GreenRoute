@@ -1,8 +1,15 @@
 package com.greenroute.app.viewmodel
 
+import android.content.Context
+import android.util.Log
+import androidx.credentials.ClearCredentialStateRequest
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.greenroute.app.data.local.entities.User
 import com.greenroute.app.data.local.entities.UserPreferences
 import com.greenroute.app.data.repository.UserRepository
@@ -29,13 +36,14 @@ class ProfileViewModel(
     private val _uiState = MutableStateFlow(ProfileUiState())
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
 
+    private val WEB_CLIENT_ID = "133619565909-44ljquqmi7okdjahfs7a0acqd746itfj.apps.googleusercontent.com"
+
     init {
         loadProfile()
     }
 
     private fun loadProfile() {
         viewModelScope.launch {
-            // Combine user and preferences flows
             combine(
                 userRepository.currentUser,
                 userRepository.currentPreferences
@@ -53,17 +61,76 @@ class ProfileViewModel(
         }
     }
 
-    fun updatePreferredTransport(transport: String) {
+    fun signInWithGoogle(context: Context) {
+        val credentialManager = CredentialManager.create(context)
+        
+        val googleIdOption = GetGoogleIdOption.Builder()
+            .setFilterByAuthorizedAccounts(false)
+            .setServerClientId(WEB_CLIENT_ID)
+            .setAutoSelectEnabled(true)
+            .build()
+
+        val request = GetCredentialRequest.Builder()
+            .addCredentialOption(googleIdOption)
+            .build()
+
         viewModelScope.launch {
-            userRepository.currentPreferences.firstOrNull()?.let { prefs ->
-                userRepository.updatePreferences(prefs.copy(preferredTransport = transport))
+            try {
+                val result = credentialManager.getCredential(context, request)
+                val credential = result.credential
+                
+                if (credential is GoogleIdTokenCredential) {
+                    handleSignInSuccess(credential)
+                }
+            } catch (e: Exception) {
+                Log.e("ProfileViewModel", "Login failed", e)
+                _uiState.update { it.copy(error = "Falha no login: ${e.message}") }
             }
+        }
+    }
+
+    private suspend fun handleSignInSuccess(credential: GoogleIdTokenCredential) {
+        val email = credential.id
+        val name = credential.displayName ?: credential.givenName
+        val photoUri = credential.profilePictureUri?.toString()
+        val googleId = credential.id // Use email or a specific ID
+
+        // Check if user exists
+        val existingUser = userRepository.getUserByEmail(email)
+        
+        if (existingUser != null) {
+            userRepository.updateUser(existingUser.copy(
+                name = name,
+                profileImageUri = photoUri,
+                lastActive = System.currentTimeMillis()
+            ))
+        } else {
+            val newUser = User(
+                googleId = googleId,
+                name = name,
+                email = email,
+                profileImageUri = photoUri,
+                joinedAt = System.currentTimeMillis(),
+                lastActive = System.currentTimeMillis()
+            )
+            val userId = userRepository.insertUser(newUser)
+            
+            // Create default preferences for new user
+            userRepository.insertPreferences(UserPreferences(userId = userId.toInt()))
+        }
+    }
+
+    fun logout(context: Context) {
+        viewModelScope.launch {
+            val credentialManager = CredentialManager.create(context)
+            credentialManager.clearCredentialState(ClearCredentialStateRequest())
+            userRepository.logout()
         }
     }
 
     fun toggleEcoMode(enabled: Boolean) {
         viewModelScope.launch {
-            userRepository.currentPreferences.firstOrNull()?.let { prefs ->
+            uiState.value.preferences?.let { prefs ->
                 userRepository.updatePreferences(prefs.copy(ecoModeEnabled = enabled))
             }
         }
@@ -71,7 +138,7 @@ class ProfileViewModel(
 
     fun toggleNotifications(enabled: Boolean) {
         viewModelScope.launch {
-            userRepository.currentPreferences.firstOrNull()?.let { prefs ->
+            uiState.value.preferences?.let { prefs ->
                 userRepository.updatePreferences(prefs.copy(notificationsEnabled = enabled))
             }
         }

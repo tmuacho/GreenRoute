@@ -27,6 +27,7 @@ import com.greenroute.app.viewmodel.RecentViewModel
 @Composable
 fun RecentScreen(
     viewModel: RecentViewModel,
+    onRouteClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState(initial = RecentUiState())
@@ -35,6 +36,7 @@ fun RecentScreen(
         uiState = uiState,
         onToggleSave = { viewModel.toggleSaveRoute(it) },
         onDelete = { viewModel.deleteRoute(it) },
+        onRouteClick = onRouteClick,
         modifier = modifier
     )
 }
@@ -45,6 +47,7 @@ fun RecentScreenContent(
     uiState: RecentUiState,
     onToggleSave: (Route) -> Unit,
     onDelete: (Route) -> Unit,
+    onRouteClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -117,7 +120,7 @@ fun RecentScreenContent(
                     ) { route ->
                         RouteCard(
                             route = route,
-                            onCardClick = {},
+                            onCardClick = { onRouteClick(route.id) },
                             onSaveClick = { onToggleSave(route) },
                             onDeleteClick = { onDelete(route) }
                         )

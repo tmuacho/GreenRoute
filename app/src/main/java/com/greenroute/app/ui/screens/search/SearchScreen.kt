@@ -1,13 +1,16 @@
 package com.greenroute.app.ui.screens.search
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,24 +35,25 @@ fun SearchScreen(
     viewModel: SearchViewModel,
     onBackClick: () -> Unit,
     onNavigateToRecent: () -> Unit,
+    onNavigateToDetail: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    
-    // Handle navigation events
+
     LaunchedEffect(Unit) {
         viewModel.navigationEvents.collect { event ->
             when (event) {
-                is SearchNavigationEvent.NavigateToRecent -> onNavigateToRecent()
+                is SearchNavigationEvent.NavigateToRouteDetail -> onNavigateToDetail(event.routeId)
             }
         }
     }
 
     // Keep text field synced with query
-    var searchText by remember { mutableStateOf(uiState.searchQuery) }
+    var searchText by remember(uiState.searchQuery) { mutableStateOf(uiState.searchQuery) }
 
+    Box(modifier = modifier.fillMaxSize()) {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(BackgroundLight)
     ) {
@@ -88,105 +92,152 @@ fun SearchScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Search field
-                OutlinedTextField(
-                    value = searchText,
-                    onValueChange = { 
-                        searchText = it
-                        viewModel.updateSearchQuery(it)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Para onde queres ir?") },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = null,
-                            tint = TextSecondary
-                        )
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = CardBackground,
-                        unfocusedContainerColor = CardBackground,
-                        focusedBorderColor = GreenLight,
-                        unfocusedBorderColor = CardBackground
-                    ),
-                    singleLine = true
-                )
-            }
-        }
-
-        // Content
-        // Transport filter chips
-        LazyRow(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            val transportTypes = listOf("car", "bus", "train", "metro", "walk", "bike")
-            items(transportTypes) { type ->
-                val isSelected = uiState.selectedTransport == type
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { 
-                        viewModel.selectTransport(if (isSelected) "" else type)
-                    },
-                    label = { Text(getTransportName(type)) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = getTransportIcon(type),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = getTransportColor(type).copy(alpha = 0.2f),
-                        selectedLabelColor = getTransportColor(type),
-                        selectedLeadingIconColor = getTransportColor(type)
-                    )
-                )
-            }
-        }
-
-        // Results header
-        Text(
-            text = "Opções de transporte",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = TextPrimary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
-
-        // Transport options list
-        if (uiState.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(32.dp),
-                    contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(color = GreenPrimary)
-            }
-        } else {
-            val filteredOptions = if (uiState.selectedTransport.isNullOrEmpty()) {
-                uiState.transportOptions
-            } else {
-                uiState.transportOptions.filter { it.type == uiState.selectedTransport }
-            }
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(filteredOptions) { option ->
-                    TransportOptionItem(
-                        option = option,
-                        onSelect = { viewModel.startRoute(option) }
+                Box {
+                    OutlinedTextField(
+                        value = searchText,
+                        onValueChange = { 
+                            searchText = it
+                            viewModel.updateSearchQuery(it)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Para onde queres ir?") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = TextSecondary
+                            )
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = CardBackground,
+                            unfocusedContainerColor = CardBackground,
+                            focusedBorderColor = GreenLight,
+                            unfocusedBorderColor = CardBackground
+                        ),
+                        singleLine = true
                     )
                 }
             }
         }
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Transport filter chips
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val transportTypes = listOf("car", "bus", "train", "metro", "walk", "bike")
+                    items(transportTypes) { type ->
+                        val isSelected = uiState.selectedTransport == type
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { 
+                                viewModel.selectTransport(if (isSelected) "" else type)
+                            },
+                            label = { Text(getTransportName(type)) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = getTransportIcon(type),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = getTransportColor(type).copy(alpha = 0.2f),
+                                selectedLabelColor = getTransportColor(type),
+                                selectedLeadingIconColor = getTransportColor(type)
+                            )
+                        )
+                    }
+                }
+
+                // Results header
+                Text(
+                    text = "Opções de transporte",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+
+                // Transport options list
+                if (uiState.isLoading) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = GreenPrimary)
+                    }
+                } else {
+                    val filteredOptions = if (uiState.selectedTransport.isNullOrEmpty()) {
+                        uiState.transportOptions
+                    } else {
+                        uiState.transportOptions.filter { it.type == uiState.selectedTransport }
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(filteredOptions) { option ->
+                            TransportOptionItem(
+                                option = option,
+                                onSelect = { viewModel.startRoute(option) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Predictions Overlay
+            if (uiState.locationPredictions.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 16.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    tonalElevation = 8.dp,
+                    shadowElevation = 8.dp
+                ) {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 300.dp)
+                    ) {
+                        items(uiState.locationPredictions) { prediction ->
+                            ListItem(
+                                headlineContent = { Text(prediction.getPrimaryText(null).toString()) },
+                                supportingContent = { Text(prediction.getSecondaryText(null).toString()) },
+                                leadingContent = { 
+                                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = GreenPrimary) 
+                                },
+                                modifier = Modifier.clickable {
+                                    viewModel.selectPrediction(prediction)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
+
+    if (uiState.isStartingRoute) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.4f)),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = GreenPrimary)
+        }
+    }
+    } // end outer Box
 }

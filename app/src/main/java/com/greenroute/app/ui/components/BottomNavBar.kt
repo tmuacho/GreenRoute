@@ -31,7 +31,7 @@ sealed class BottomNavItem(
 
     object Saved : BottomNavItem(
         route = "saved",
-        title = "Salvos",
+        title = "Guardados",
         selectedIcon = Icons.Filled.Bookmark,
         unselectedIcon = Icons.Outlined.BookmarkBorder
     )
